@@ -1,17 +1,14 @@
 /* Layout: schmale Steuerleiste oben, darunter Griffbrett-Lage und Tabs als durchlaufende Notenzeilen */
 :root{
-  --bg:#eef0ee; --panel:#fbfcfb; --fg:#1b2024; --muted:#5b656d; --line:#c3c9cc; --staff:#9aa2a7;
-  --accent:#ad5a17; --accent-soft:#f3dfcc; --accent-ink:#ffffff; --hl:#ad5a17;
-  --f-display:"Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
-  --f-body:"IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
-  --f-mono:"IBM Plex Mono", ui-monospace, Consolas, monospace;
+  /* Farben aus smaragd.css (Dark Standard, Light per System oder data-theme), hier nur auf die Rollen der Seite abgebildet */
+  --bg:var(--background); --panel:var(--surface-container); --fg:var(--on-surface); --muted:var(--on-surface-variant);
+  --line:var(--outline-variant); --staff:var(--outline);
+  --accent:var(--primary); --accent-ink:var(--on-primary); --hl:var(--primary);
+  --accent-soft:var(--primary-container); --accent-soft-ink:var(--on-primary-container);
+  --f-display:"Bricolage Grotesque", Georgia, serif;
+  --f-body:"Figtree", system-ui, sans-serif;
+  --f-mono:"JetBrains Mono", ui-monospace, Consolas, monospace;
 }
-@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
-  --bg:#15181a; --panel:#1d2124; --fg:#e5e8e9; --muted:#9aa3a9; --line:#363d42; --staff:#59626a;
-  --accent:#e59a52; --accent-soft:#3a2a1c; --accent-ink:#1a1206; --hl:#e59a52; color-scheme:dark } }
-:root[data-theme="dark"]{
-  --bg:#15181a; --panel:#1d2124; --fg:#e5e8e9; --muted:#9aa3a9; --line:#363d42; --staff:#59626a;
-  --accent:#e59a52; --accent-soft:#3a2a1c; --accent-ink:#1a1206; --hl:#e59a52; color-scheme:dark }
 *{box-sizing:border-box}
 body{background:var(--bg);color:var(--fg);font:15px/1.5 var(--f-body);}
 .wrap{max-width:1240px;margin:0 auto;padding:0 16px;padding-block:20px 60px}
@@ -35,9 +32,9 @@ select{background:var(--bg);border:1px solid var(--line);border-radius:7px;paddi
 .seg button[aria-pressed=true]{background:var(--accent);color:var(--accent-ink);font-weight:600}
 .chips{display:flex;flex-wrap:wrap;gap:6px}
 .chip{border:1px solid var(--line);background:transparent;border-radius:99px;padding:4px 11px;cursor:pointer;font-size:13.5px}
-.chip[aria-pressed=true]{background:var(--accent-soft);border-color:var(--accent);color:var(--fg)}
+.chip[aria-pressed=true]{background:var(--accent-soft);border-color:var(--accent);color:var(--accent-soft-ink)}
 .wide{grid-column:1/-1}
-.dock{position:fixed;left:0;right:0;bottom:0;z-index:10;background:var(--panel);border-top:1px solid var(--line);box-shadow:0 -6px 18px rgba(0,0,0,.08);padding:10px 16px calc(8px + env(safe-area-inset-bottom, 0px))}
+.dock{position:fixed;left:0;right:0;bottom:0;z-index:10;background:var(--panel);border-top:1px solid var(--line);box-shadow:0 -6px 18px rgba(0,0,0,.18);padding:10px 16px calc(8px + env(safe-area-inset-bottom, 0px))}
 .dock-in{max-width:1208px;margin:0 auto}
 .bar{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center}
 .wrap{padding-bottom:calc(var(--dock-h, 110px) + 24px)}
