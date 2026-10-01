@@ -79,6 +79,8 @@ section.sec{margin-top:26px}
 .staff svg g.n.on rect.bg{fill:var(--hl)}
 .staff svg g.n.on text.fr{fill:var(--accent-ink)}
 .tip{margin-top:30px;color:var(--muted);font-size:13.5px;max-width:75ch;border-top:1px solid var(--line);padding-top:12px}
+.copy{margin-top:18px;color:var(--muted);font-size:13px}
+.copy a{color:inherit}
 .tip b{color:var(--fg);font-weight:600}
 @media (prefers-reduced-motion: reduce){*{scroll-behavior:auto!important}}
 /* Druck: nur Titel, Griffbild und Tabs, immer hell, Takte nicht zerteilen */
