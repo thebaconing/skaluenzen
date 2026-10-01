@@ -53,8 +53,10 @@ label.tg input{accent-color:var(--accent);width:16px;height:16px}
 .spacer{flex:1}
 .status{color:var(--muted);font-size:13px;min-height:1.5em;margin-top:4px}
 @media (max-width:560px){.tempo input{width:120px}.dock .spacer{display:none}.dock .btn{padding:6px 10px}}
-.board{margin:18px 0 6px;display:flex;flex-wrap:wrap;gap:10px 28px;align-items:flex-end}
+/* Feste Spalte für Tonart-Text, damit das Griffbild beim Textwechsel an Ort und Stelle bleibt */
+.board{margin:18px 0 6px;display:grid;grid-template-columns:340px auto;justify-content:start;gap:10px 28px;align-items:end}
 .board .meta{min-width:0}
+@media (max-width:700px){.board{grid-template-columns:minmax(0,1fr)}.board .fb-wrap{order:-1}}
 .board h2{font:700 22px/1.2 var(--f-display);margin:0}
 .board .meta p{margin:2px 0 0;color:var(--muted);font-size:14px}
 .fb-wrap{overflow-x:auto;max-width:100%}
