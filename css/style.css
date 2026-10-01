@@ -76,3 +76,16 @@ section.sec{margin-top:26px}
 .tip{margin-top:30px;color:var(--muted);font-size:13.5px;max-width:75ch;border-top:1px solid var(--line);padding-top:12px}
 .tip b{color:var(--fg);font-weight:600}
 @media (prefers-reduced-motion: reduce){*{scroll-behavior:auto!important}}
+/* Druck: nur Titel, Griffbild und Tabs, immer hell, Takte nicht zerteilen */
+@media print{
+  :root,:root:not([data-theme="light"]),:root[data-theme="dark"]{
+    --bg:#fff; --panel:#fff; --fg:#000; --muted:#444; --line:#bbb; --staff:#888; --accent:#000; --accent-ink:#fff; --hl:transparent; color-scheme:light }
+  @page{margin:12mm}
+  body{background:#fff;font-size:12px}
+  .wrap{max-width:none;padding:0}
+  .controls,.dock,.tip,header p,.sec-head button{display:none!important}
+  .staff svg g.n.on rect.bg{fill:#fff}.staff svg g.n.on text.fr{fill:#000}
+  .board,.staff svg,.sec-head{break-inside:avoid}
+  .sec-head{break-after:avoid}
+  section.sec{margin-top:14px}
+}

@@ -271,6 +271,7 @@ $('dl').onclick = async () => {
   try { await downloads.save({ filename: base + '.zip', data: new Blob([makeZip([{ name: base + '.musicxml', data: xml() }])]) }); $('status').textContent = 'Gespeichert. ZIP entpacken und die .musicxml in Guitar Pro importieren.'; }
   catch (e) { $('status').textContent = e && e.code === 'declined' ? 'Speichern abgebrochen.' : 'Speichern ging hier nicht. Nutze „MusicXML kopieren“.'; }
 };
+$('print').onclick = () => { stop(); $('status').textContent = ''; print(); };
 $('copy').onclick = () => {
   const t = xml();
   navigator.clipboard.writeText(t).then(() => { $('status').textContent = `MusicXML kopiert. In einen Editor einfügen und als ${fileBase()}.musicxml speichern.`; })
