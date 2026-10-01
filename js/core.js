@@ -1,10 +1,12 @@
 // Kernlogik: Leitern, Fingersätze, Sequenzen, MusicXML- und ZIP-Export.
 // Läuft im Browser und in Node (für die Tests).
 // ===== Kernlogik: Skalen, Lagen, Sequenzen, MusicXML, ZIP =====
+// Texte kommen aus i18n.js (im Browser vorher geladen, in Node per require)
+if (typeof module !== 'undefined' && typeof t === 'undefined') var { t, typeName } = require('./i18n.js');
 const LETTERS = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
 const NAT_PC = [0, 2, 4, 5, 7, 9, 11];
 // Stimmungen: Leersaiten von der tiefsten zur höchsten Saite in wissenschaftlicher Notation (klingend, E2 = tiefe E-Saite).
-// Neue Stimmung = neuer Eintrag hier, mehr ist nicht nötig. Vorzeichen als '#' oder 'b', z. B. 'Eb2'.
+// Neue Stimmung = neuer Eintrag hier, mehr ist nicht nötig. label als Text oder je Sprache ({ de: …, en: … }). Vorzeichen als '#' oder 'b', z. B. 'Eb2'.
 const TUNINGS = {
   standard: { label: 'Standard', strings: ['E2', 'A2', 'D3', 'G3', 'B3', 'E4'] },
   dropd: { label: 'Drop D', strings: ['D2', 'A2', 'D3', 'G3', 'B3', 'E4'] }
@@ -40,17 +42,6 @@ function parseName(n) {
 }
 function displayName(letter, alter) {
   return LETTERS[letter] + (alter === 1 ? '♯' : alter === -1 ? '♭' : alter === 2 ? '𝄪' : alter === -2 ? '𝄫' : '');
-}
-function germanName(name, mode) {
-  // Deutsche Schreibweise: B -> H, Bb -> B
-  let n = name.replace('#', 'is');
-  if (name === 'B') n = 'H';
-  else if (name === 'Bb') n = 'B';
-  else if (name === 'Eb') n = 'Es';
-  else if (name === 'Ab') n = 'As';
-  else if (name === 'Db') n = 'Des';
-  else if (name.endsWith('b')) n = name[0] + 'es';
-  return mode === 'minor' ? n.toLowerCase() + '-Moll' : n + '-Dur';
 }
 
 // Skala: 7 Stufen mit Schreibweise
@@ -155,11 +146,11 @@ function listShapes(scale, system, open = OPEN) {
 
 // --- Übungsteile ---
 const SECTIONS = [
-  { id: 'threes', title: 'Achteltriolen in Dreiergruppen', sub: 'Skala in Dreiergruppen auf- und abwärts', pat: [0, 1, 2], unit: 'tri8' },
-  { id: 'fours', title: 'Sechzehntel in Vierergruppen', sub: 'Skala in Vierergruppen auf- und abwärts', pat: [0, 1, 2, 3], unit: 's16' },
-  { id: 'thirds', title: 'Sechzehntel in Terzen', sub: 'Terzen auf jeder Stufe (1-3, 2-4, 3-5 …) auf- und abwärts', pat: [0, 2], unit: 's16' },
-  { id: 'triads', title: 'Sechzehnteltriolen 1-3-5', sub: 'Dreiklänge auf jeder Stufe', pat: [0, 2, 4], unit: 'tri16' },
-  { id: 'sevenths', title: 'Sechzehntel 1-3-5-7', sub: 'Vierklänge auf jeder Stufe', pat: [0, 2, 4, 6], unit: 's16' }
+  { id: 'threes', pat: [0, 1, 2], unit: 'tri8' },
+  { id: 'fours', pat: [0, 1, 2, 3], unit: 's16' },
+  { id: 'thirds', pat: [0, 2], unit: 's16' },
+  { id: 'triads', pat: [0, 2, 4], unit: 'tri16' },
+  { id: 'sevenths', pat: [0, 2, 4, 6], unit: 's16' }
 ];
 // Dauer in Divisions (12 pro Viertel)
 const UNITS = {
@@ -170,17 +161,14 @@ const UNITS = {
 const DIV = 12, MEASURE = 48;
 // Texte je Leitertyp (bei Pentatonik/Blues sind 1-3-5 Leiterstufen, keine Akkorde)
 function sectionText(sec, type) {
-  if (type === 'scale') return { title: sec.title, sub: sec.sub };
-  const L = type === 'penta' ? 'Pentatonik' : 'Blues-Tonleiter';
+  const id = sec.id;
+  if (type === 'scale') return { title: t(`sec.${id}.title`), sub: t(`sec.${id}.sub`) };
+  const L = t('scl.' + type), x = k => `secx.${id}.${k}`;
   return {
-    threes: { title: sec.title, sub: `${L} in Dreiergruppen auf- und abwärts` },
-    fours: { title: sec.title, sub: `${L} in Vierergruppen auf- und abwärts` },
-    thirds: { title: 'Sechzehntel in Sprüngen', sub: `immer einen Leiterton überspringen (1-3, 2-4, 3-5 … der ${L})` + (type === 'penta' ? ', ergibt Terzen und Quarten' : '') },
-    triads: { title: 'Sechzehnteltriolen 1-3-5 der Leiter', sub: 'drei Töne im Abstand von je einem übersprungenen Leiterton, ab jeder Stufe (keine Dur-/Moll-Dreiklänge)' },
-    sevenths: { title: 'Sechzehntel 1-3-5-7 der Leiter', sub: 'vier Töne im Abstand von je einem übersprungenen Leiterton, ab jeder Stufe' }
-  }[sec.id];
+    title: t(x('title')) === x('title') ? t(`sec.${id}.title`) : t(x('title')),
+    sub: t(x('sub'), { L }) + (id === 'thirds' && type === 'penta' ? t('secx.thirds.penta') : '')
+  };
 }
-function typeName(root, mode, type) { return germanName(root, mode) + (type === 'penta' ? '-Pentatonik' : type === 'blues' ? '-Blues' : ''); }
 
 function sequenceIdx(pat, lo, hi) {
   const span = pat[pat.length - 1];
@@ -251,7 +239,7 @@ function beamInfo(measure) {
   return res;
 }
 function toMusicXML(ex, opts) {
-  const title = `Skalenübung ${typeName(opts.root, opts.mode, opts.type || 'scale')}`;
+  const title = t('xml.title', { name: typeName(opts.root, opts.mode, opts.type || 'scale') });
   const fifths = ROOTS[opts.mode].find(r => r[0] === opts.root)[1];
   let mno = 0, out = '';
   ex.sections.forEach((S, si) => {
@@ -336,4 +324,4 @@ function makeZip(files) {
   return out;
 }
 
-if (typeof module !== 'undefined') module.exports = { TYPES, TUNINGS, tuningOpen, parseTuningNote, sectionText, OPEN, ROOTS, MODES, SECTIONS, UNITS, buildScale, listShapes, buildExercise, toMusicXML, makeZip, germanName, displayName, degreeOf, bestShape };
+if (typeof module !== 'undefined') module.exports = { TYPES, TUNINGS, tuningOpen, parseTuningNote, sectionText, OPEN, ROOTS, MODES, SECTIONS, UNITS, buildScale, listShapes, buildExercise, toMusicXML, makeZip, displayName, degreeOf, bestShape };

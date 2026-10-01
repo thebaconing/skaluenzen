@@ -2,24 +2,21 @@
 (() => {
 const $ = id => document.getElementById(id);
 const STORE = 'skalenseq-v1';
-let st = { type: 'scale', mode: 'minor', root: 'E', system: 'pos', fret: null, range: 'root', tuning: 'standard', bpm: 90, vol: 50, tone: 35, sections: SECTIONS.map(s => s.id) };
+let st = { type: 'scale', mode: 'minor', root: 'E', system: 'pos', fret: null, range: 'root', tuning: 'standard', lang: /^de/i.test(navigator.language || '') ? 'de' : 'en', bpm: 90, vol: 50, tone: 35, sections: SECTIONS.map(s => s.id) };
 try { const s = JSON.parse(localStorage.getItem(STORE) || 'null'); if (s) st = Object.assign(st, s); } catch (e) {}
 if (st.system === '3nps') st.system = 'nps';
 if (!TYPES[st.type]) st.type = 'scale';
 if (!TUNINGS[st.tuning]) st.tuning = 'standard';
+if (!LANGS[st.lang]) st.lang = 'de';
+setLang(st.lang);
 const save = () => { try { localStorage.setItem(STORE, JSON.stringify(st)); } catch (e) {} };
 
-function deNote(letter, alter) {
-  const L = 'CDEFGAB'[letter];
-  if (L === 'B') return alter === 0 ? 'H' : alter === -1 ? 'B' : 'H' + (alter > 0 ? '♯' : '♭');
-  return L + (alter === 1 ? '♯' : alter === -1 ? '♭' : alter === 2 ? '𝄪' : alter === -2 ? '𝄫' : '');
-}
-function deRoot(n) { const p = { letter: 'CDEFGAB'.indexOf(n[0]), alter: n[1] === '#' ? 1 : n[1] === 'b' ? -1 : 0 }; return deNote(p.letter, p.alter); }
+const deNote = noteName; // Notenname in der gewählten Sprache
 const DEG = ['1', '2', '3', '4', '5', '6', '7'];
-// Saitennamen der Stimmung, deutsche Schreibweise, höchste Saite klein
+// Saitennamen der Stimmung in der gewählten Sprache, höchste Saite klein
 function stringNames(id) { return TUNINGS[id].strings.map(parseTuningNote).map((t, i, a) => { const n = deNote(t.letter, t.alter); return i === a.length - 1 ? n.toLowerCase() : n; }); }
 function fillTunings() {
-  $('tuning').innerHTML = Object.entries(TUNINGS).map(([id, t]) => `<option value="${id}">${t.label} (${stringNames(id).join(' ')})</option>`).join('');
+  $('tuning').innerHTML = Object.entries(TUNINGS).map(([id, t]) => `<option value="${id}">${typeof t.label === 'object' ? t.label[LANG] || t.label.de : t.label} (${stringNames(id).join(' ')})</option>`).join('');
   $('tuning').value = st.tuning;
 }
 
@@ -29,7 +26,7 @@ function setSeg(id, v) { $(id).querySelectorAll('button').forEach(b => b.setAttr
 function fillRoots() {
   const list = ROOTS[st.mode];
   if (!list.some(r => r[0] === st.root)) st.root = list[0][0];
-  $('root').innerHTML = list.map(r => `<option value="${r[0]}">${deRoot(r[0])}${st.mode === 'minor' ? '-Moll' : '-Dur'}  (${r[1] === 0 ? 'keine Vorzeichen' : Math.abs(r[1]) + (r[1] > 0 ? ' ♯' : ' ♭')})</option>`).join('');
+  $('root').innerHTML = list.map(r => `<option value="${r[0]}">${keyName(r[0], st.mode)}  (${r[1] === 0 ? t('acc.none') : Math.abs(r[1]) + (r[1] > 0 ? ' ♯' : ' ♭')})</option>`).join('');
   $('root').value = st.root;
 }
 function fillPositions() {
@@ -40,7 +37,7 @@ function fillPositions() {
   $('pos').innerHTML = shapes.map(s => {
     const n0 = s.notes[0]; const d = scale[degreeOf(scale, n0.m)];
     const fs = s.notes.map(n => n.f), lo = Math.min(...fs), hi = Math.max(...fs);
-    return `<option value="${s.f}">Bund ${lo}–${hi} · beginnt mit ${deNote(d.letter, d.alter)} (${d.degree + 1}. Stufe)${s.f === best ? ' · größter Umfang' : ''}</option>`;
+    return `<option value="${s.f}">${t('pos.opt', { lo, hi, note: deNote(d.letter, d.alter), deg: d.degree + 1 })}${s.f === best ? t('pos.best') : ''}</option>`;
   }).join('');
   $('pos').value = st.fret;
 }
@@ -117,25 +114,34 @@ function measureSvg(meas, S, num) {
   return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" aria-hidden="true">${s}</svg>`;
 }
 
+// Feste Texte der Seite (data-i18n = Text, data-i18n-html = Text mit Auszeichnung, data-i18n-aria = aria-label)
+function applyLang() {
+  document.documentElement.lang = LANG;
+  document.querySelectorAll('[data-i18n]').forEach(el => el.textContent = t(el.dataset.i18n));
+  document.querySelectorAll('[data-i18n-html]').forEach(el => el.innerHTML = t(el.dataset.i18nHtml));
+  document.querySelectorAll('[data-i18n-aria]').forEach(el => el.setAttribute('aria-label', t(el.dataset.i18nAria)));
+  $('lang').innerHTML = Object.keys(LANGS).map(l => `<button data-v="${l}" lang="${l}">${LANGS[l].label}</button>`).join('');
+  setSeg('lang', LANG);
+}
 function render() {
   stop();
-  $('sysPos').textContent = st.type === 'scale' ? 'Lage (2–3 pro Saite)' : st.type === 'penta' ? 'Lage (4 Bünde)' : 'Lage (4 Bünde)';
-  $('sysNps').textContent = st.type === 'scale' ? '3 pro Saite' : st.type === 'penta' ? 'Boxen (2 pro Saite)' : 'Boxen + Blue Note';
+  $('sysPos').textContent = t(st.type === 'scale' ? 'sys.pos.scale' : 'sys.pos.other');
+  $('sysNps').textContent = t('sys.nps.' + st.type);
   fillTunings(); fillRoots(); fillPositions(); fillSecs(); setSeg('type', st.type); setSeg('mode', st.mode); setSeg('system', st.system); setSeg('range', st.range);
   $('bpm').value = st.bpm; $('bpmOut').value = st.bpm;
   $('vol').value = st.vol; $('volOut').value = st.vol; $('tone').value = st.tone; $('toneOut').value = st.tone;
   ex = buildExercise({ type: st.type, root: st.root, mode: st.mode, system: st.system, fret: st.fret, range: st.range, tuning: st.tuning, sections: st.sections });
   const nm = typeName(st.root, st.mode, st.type);
   $('keyTitle').textContent = nm;
-  $('keySub').textContent = ex.scale.map(d => deNote(d.letter, d.alter) + (d.blue ? (d.letter === 6 && d.alter === -1 ? ' (= B♭, Blue Note)' : ' (Blue Note)') : '')).join(' · ') + (st.mode === 'minor' ? `  (Paralleltonart ${deRoot(relMajor())}-Dur)` : '');
+  $('keySub').textContent = ex.scale.map(d => deNote(d.letter, d.alter) + (d.blue ? t(d.letter === 6 && d.alter === -1 ? 'blue.bflat' : 'blue') : '')).join(' · ') + (st.mode === 'minor' ? t('relmajor', { key: keyName(relMajor(), 'major') }) : '');
   drawBoard();
   noteEls = []; let k = 0, mno = 0, html = '';
   ex.sections.forEach((S, si) => {
     let svgs = '';
     S.measures.forEach(m => { m.forEach(e => { if (e.kind === 'note') e._k = k++; }); svgs += measureSvg(m, S, ++mno); });
-    html += `<section class="sec"><div class="sec-head"><h3>${S.sec.title}</h3><p>${S.sec.sub}</p><button class="btn" data-play="${si}">▶ nur diesen Teil</button></div><div class="staff">${svgs}</div></section>`;
+    html += `<section class="sec"><div class="sec-head"><h3>${S.sec.title}</h3><p>${S.sec.sub}</p><button class="btn" data-play="${si}">${t('sec.playOnly')}</button></div><div class="staff">${svgs}</div></section>`;
   });
-  $('out').innerHTML = html || '<p class="status">Wähle oben mindestens einen Teil aus.</p>';
+  $('out').innerHTML = html || `<p class="status">${t('sec.none')}</p>`;
   document.querySelectorAll('#out g.n').forEach(g => noteEls[+g.dataset.k] = g);
   save();
 }
@@ -225,14 +231,14 @@ function frame() {
 }
 async function start(only) {
   if (!ex.sections.length) return;
-  if (!ac) { const C = window.AudioContext || window.webkitAudioContext; if (!C) { $('status').textContent = 'Dieser Browser kann keinen Ton abspielen.'; return; } ac = new C(); }
+  if (!ac) { const C = window.AudioContext || window.webkitAudioContext; if (!C) { $('status').textContent = t('st.noAudio'); return; } ac = new C(); }
   stop();
   const my = ++runId;
-  playing = true; $('play').textContent = '■ Stopp';
+  playing = true; $('play').textContent = t('stop');
   // Erst warten, bis die Audioausgabe wirklich läuft, dann die Zeitachse festlegen
   try { if (ac.state !== 'running') await ac.resume(); } catch (e) {}
   if (my !== runId || !playing) return;
-  if (ac.state !== 'running') { stop(); $('status').textContent = 'Der Browser hat die Tonausgabe blockiert. Bitte nochmal auf Abspielen tippen.'; return; }
+  if (ac.state !== 'running') { stop(); $('status').textContent = t('st.blocked'); return; }
   queue = buildQueue(only);
   queue.q.forEach(e => { if (!e.click) ks(e.m); }); // Gitarrenklänge vorab berechnen
   master = ac.createGain(); master.connect(ac.destination);
@@ -240,13 +246,13 @@ async function start(only) {
   applySound();
   qi = 0; curAt = 0; endAt = null; nextT = ac.currentTime + 0.12; shown = [];
   timer = setInterval(schedule, 25); schedule(); frame();
-  $('status').textContent = only != null ? `Spielt: ${ex.sections[only].sec.title}` : 'Spielt alle gewählten Teile, mit vier Klicks Einzähler.';
+  $('status').textContent = only != null ? t('st.playing', { title: ex.sections[only].sec.title }) : t('st.playingAll');
 }
 function stop() {
   runId++; endAt = null;
   playing = false; if (timer) clearInterval(timer); timer = null; cancelAnimationFrame(rafId);
   if (lastOn) lastOn.classList.remove('on'); lastOn = null;
-  if ($('play')) $('play').textContent = '▶ Abspielen';
+  if ($('play')) $('play').textContent = t('play');
   if (master) { try { master.disconnect(); lp.disconnect(); } catch (e) {} master = null; lp = null; }
 }
 
@@ -261,7 +267,7 @@ const setDockVar = () => document.documentElement.style.setProperty('--dock-h', 
 new ResizeObserver(setDockVar).observe(dock); setDockVar();
 
 // ---------- Export ----------
-function fileBase() { return `Skalenuebung_${typeName(st.root, st.mode, st.type).replace(/[^A-Za-z0-9-]/g, '')}_Bund${ex.shape.f}${st.system === 'nps' ? (st.type === 'scale' ? '_3proSaite' : '_Box') : ''}`; }
+function fileBase() { return `${t('file.prefix')}_${typeName(st.root, st.mode, st.type).replace(/♯/g, 'is').replace(/♭/g, 'b').replace(/ /g, '_').replace(/[^A-Za-z0-9_-]/g, '')}_${t('file.fret')}${ex.shape.f}${st.system === 'nps' ? '_' + t(st.type === 'scale' ? 'file.nps' : 'file.box') : ''}`; }
 function xml() { return toMusicXML(ex, { type: st.type, root: st.root, mode: st.mode, bpm: st.bpm }); }
 let downloads = null;
 (async () => { try { downloads = window.claude ? await window.claude.use('downloads') : null; } catch (e) { downloads = null; } $('dl').hidden = false; })();
@@ -272,17 +278,17 @@ $('dl').onclick = async () => {
     const url = URL.createObjectURL(new Blob([xml()], { type: 'application/vnd.recordare.musicxml+xml' }));
     const a = document.createElement('a'); a.href = url; a.download = base + '.musicxml'; document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
-    $('status').textContent = 'Gespeichert. Die .musicxml in Guitar Pro über Datei › Importieren › MusicXML öffnen.';
+    $('status').textContent = t('st.saved');
     return;
   }
-  try { await downloads.save({ filename: base + '.zip', data: new Blob([makeZip([{ name: base + '.musicxml', data: xml() }])]) }); $('status').textContent = 'Gespeichert. ZIP entpacken und die .musicxml in Guitar Pro importieren.'; }
-  catch (e) { $('status').textContent = e && e.code === 'declined' ? 'Speichern abgebrochen.' : 'Speichern ging hier nicht. Nutze „MusicXML kopieren“.'; }
+  try { await downloads.save({ filename: base + '.zip', data: new Blob([makeZip([{ name: base + '.musicxml', data: xml() }])]) }); $('status').textContent = t('st.saved'); }
+  catch (e) { $('status').textContent = t(e && e.code === 'declined' ? 'st.saveCancel' : 'st.saveFail'); }
 };
 $('print').onclick = () => { stop(); $('status').textContent = ''; print(); };
 $('copy').onclick = () => {
   const t = xml();
-  navigator.clipboard.writeText(t).then(() => { $('status').textContent = `MusicXML kopiert. In einen Editor einfügen und als ${fileBase()}.musicxml speichern.`; })
-    .catch(() => { $('status').textContent = 'Kopieren wurde vom Browser blockiert.'; });
+  navigator.clipboard.writeText(t).then(() => { $('status').textContent = t('st.copied', { file: fileBase() }); })
+    .catch(() => { $('status').textContent = t('st.copyFail'); });
 };
 
 // ---------- Events ----------
@@ -297,8 +303,9 @@ $('secs').onclick = e => { const v = e.target.dataset.v; if (!v) return; st.sect
 $('bpm').oninput = e => { st.bpm = +e.target.value; $('bpmOut').value = st.bpm; save(); };
 $('vol').oninput = e => { st.vol = +e.target.value; $('volOut').value = st.vol; applySound(); save(); };
 $('tone').oninput = e => { st.tone = +e.target.value; $('toneOut').value = st.tone; applySound(); save(); };
+$('lang').onclick = e => { const v = e.target.dataset.v; if (!v || v === st.lang) return; st.lang = v; setLang(v); applyLang(); render(); };
 $('play').onclick = () => playing ? (stop(), $('status').textContent = '') : start(null);
 $('out').onclick = e => { const b = e.target.closest('[data-play]'); if (b) start(+b.dataset.play); };
 
-fillSecs(); render();
+applyLang(); fillSecs(); render();
 })();

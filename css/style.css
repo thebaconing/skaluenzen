@@ -17,6 +17,9 @@ body{background:var(--bg);color:var(--fg);font:15px/1.5 var(--f-body);}
 .wrap{max-width:1240px;margin:0 auto;padding:0 16px;padding-block:20px 60px}
 header{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 18px;margin-bottom:16px}
 h1{font:700 clamp(26px,4vw,38px)/1.1 var(--f-display);margin:0;letter-spacing:-.01em;text-wrap:balance}
+header{position:relative;padding-right:104px}
+header .lang{position:absolute;top:2px;right:0}
+header .lang button{padding:4px 10px;font-size:13px}
 header p{margin:0;color:var(--muted);max-width:60ch}
 .controls{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px;display:grid;gap:14px;
   grid-template-columns:1fr;}
@@ -81,9 +84,10 @@ section.sec{margin-top:26px}
   :root,:root:not([data-theme="light"]),:root[data-theme="dark"]{
     --bg:#fff; --panel:#fff; --fg:#000; --muted:#444; --line:#bbb; --staff:#888; --accent:#000; --accent-ink:#fff; --hl:transparent; color-scheme:light }
   @page{margin:12mm}
+  header{padding-right:0}
   body{background:#fff;font-size:12px}
   .wrap{max-width:none;padding:0}
-  .controls,.dock,.tip,header p,.sec-head button{display:none!important}
+  .controls,.dock,.tip,header p,header .lang,.sec-head button{display:none!important}
   .staff svg g.n.on rect.bg{fill:#fff}.staff svg g.n.on text.fr{fill:#000}
   .board,.staff svg,.sec-head{break-inside:avoid}
   .sec-head{break-after:avoid}
