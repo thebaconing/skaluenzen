@@ -1,0 +1,11 @@
+{
+  "name": "skalen-sequenzen",
+  "version": "1.0.0",
+  "description": "Gitarren-Skalenübungen (Dreier, Vierer, Sprünge, 1-3-5, 1-3-5-7) für jede Tonart, Leiter und Lage, mit Wiedergabe und MusicXML-Export für Guitar Pro.",
+  "private": true,
+  "scripts": {
+    "test": "node tests/verify.test.js",
+    "start": "npx --yes serve ."
+  },
+  "license": "UNLICENSED"
+}
