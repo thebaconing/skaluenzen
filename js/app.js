@@ -2,10 +2,11 @@
 (() => {
 const $ = id => document.getElementById(id);
 const STORE = 'skalenseq-v1';
-let st = { type: 'scale', mode: 'minor', root: 'E', system: 'pos', fret: null, range: 'root', bpm: 90, vol: 50, tone: 35, sections: SECTIONS.map(s => s.id) };
+let st = { type: 'scale', mode: 'minor', root: 'E', system: 'pos', fret: null, range: 'root', tuning: 'standard', bpm: 90, vol: 50, tone: 35, sections: SECTIONS.map(s => s.id) };
 try { const s = JSON.parse(localStorage.getItem(STORE) || 'null'); if (s) st = Object.assign(st, s); } catch (e) {}
 if (st.system === '3nps') st.system = 'nps';
 if (!TYPES[st.type]) st.type = 'scale';
+if (!TUNINGS[st.tuning]) st.tuning = 'standard';
 const save = () => { try { localStorage.setItem(STORE, JSON.stringify(st)); } catch (e) {} };
 
 function deNote(letter, alter) {
@@ -15,6 +16,12 @@ function deNote(letter, alter) {
 }
 function deRoot(n) { const p = { letter: 'CDEFGAB'.indexOf(n[0]), alter: n[1] === '#' ? 1 : n[1] === 'b' ? -1 : 0 }; return deNote(p.letter, p.alter); }
 const DEG = ['1', '2', '3', '4', '5', '6', '7'];
+// Saitennamen der Stimmung, deutsche Schreibweise, höchste Saite klein
+function stringNames(id) { return TUNINGS[id].strings.map(parseTuningNote).map((t, i, a) => { const n = deNote(t.letter, t.alter); return i === a.length - 1 ? n.toLowerCase() : n; }); }
+function fillTunings() {
+  $('tuning').innerHTML = Object.entries(TUNINGS).map(([id, t]) => `<option value="${id}">${t.label} (${stringNames(id).join(' ')})</option>`).join('');
+  $('tuning').value = st.tuning;
+}
 
 let ex = null, noteEls = [];
 
@@ -27,7 +34,7 @@ function fillRoots() {
 }
 function fillPositions() {
   const scale = buildScale(st.root, st.mode, st.type);
-  const shapes = listShapes(scale, st.system);
+  const shapes = listShapes(scale, st.system, tuningOpen(st.tuning));
   if (!shapes.some(s => s.f === st.fret)) st.fret = bestShape(shapes, st.range).f;
   const best = bestShape(shapes, st.range).f;
   $('pos').innerHTML = shapes.map(s => {
@@ -43,13 +50,13 @@ function fillSecs() {
 
 // ---------- Griffbild ----------
 function drawBoard() {
-  const sh = ex.shape, fs = sh.notes.map(n => n.f).filter(f => f > 0);
+  const names = stringNames(ex.tuning), sh = ex.shape, fs = sh.notes.map(n => n.f).filter(f => f > 0);
   const hasOpen = sh.notes.some(n => n.f === 0);
   const lo = hasOpen ? 1 : Math.max(1, Math.min(...fs)), hi = Math.max(...fs, lo + 3);
   const nF = hi - lo + 1, fw = 38, sh_ = 18, ox = hasOpen ? 46 : 30, oy = 12;
   const W = ox + nF * fw + 8, H = oy + 5 * sh_ + 28;
   let s = '';
-  for (let i = 0; i < 6; i++) { const y = oy + (5 - i) * sh_; s += `<line x1="${ox}" y1="${y}" x2="${ox + nF * fw}" y2="${y}" stroke="var(--staff)" stroke-width="${1 + (5 - i) * 0.25}"/><text x="${hasOpen ? 10 : ox - 16}" y="${y + 4}" fill="var(--muted)" text-anchor="middle">${STR_NAMES[i]}</text>`; }
+  for (let i = 0; i < 6; i++) { const y = oy + (5 - i) * sh_; s += `<line x1="${ox}" y1="${y}" x2="${ox + nF * fw}" y2="${y}" stroke="var(--staff)" stroke-width="${1 + (5 - i) * 0.25}"/><text x="${hasOpen ? 10 : ox - 16}" y="${y + 4}" fill="var(--muted)" text-anchor="middle">${names[i]}</text>`; }
   for (let c = 0; c <= nF; c++) { const x = ox + c * fw; s += `<line x1="${x}" y1="${oy}" x2="${x}" y2="${oy + 5 * sh_}" stroke="var(--fg)" stroke-opacity="${c === 0 && lo === 1 ? 0.9 : 0.35}" stroke-width="${c === 0 && lo === 1 ? 4 : 1}"/>`; }
   for (let f = lo; f <= hi; f++) { const mk = [3, 5, 7, 9, 12, 15, 17].includes(f); s += `<text x="${ox + (f - lo + 0.5) * fw}" y="${oy + 5 * sh_ + 20}" fill="var(--${mk ? 'fg' : 'muted'})" text-anchor="middle">${f}</text>`; }
   for (const n of sh.notes) {
@@ -114,10 +121,10 @@ function render() {
   stop();
   $('sysPos').textContent = st.type === 'scale' ? 'Lage (2–3 pro Saite)' : st.type === 'penta' ? 'Lage (4 Bünde)' : 'Lage (4 Bünde)';
   $('sysNps').textContent = st.type === 'scale' ? '3 pro Saite' : st.type === 'penta' ? 'Boxen (2 pro Saite)' : 'Boxen + Blue Note';
-  fillRoots(); fillPositions(); fillSecs(); setSeg('type', st.type); setSeg('mode', st.mode); setSeg('system', st.system); setSeg('range', st.range);
+  fillTunings(); fillRoots(); fillPositions(); fillSecs(); setSeg('type', st.type); setSeg('mode', st.mode); setSeg('system', st.system); setSeg('range', st.range);
   $('bpm').value = st.bpm; $('bpmOut').value = st.bpm;
   $('vol').value = st.vol; $('volOut').value = st.vol; $('tone').value = st.tone; $('toneOut').value = st.tone;
-  ex = buildExercise({ type: st.type, root: st.root, mode: st.mode, system: st.system, fret: st.fret, range: st.range, sections: st.sections });
+  ex = buildExercise({ type: st.type, root: st.root, mode: st.mode, system: st.system, fret: st.fret, range: st.range, tuning: st.tuning, sections: st.sections });
   const nm = typeName(st.root, st.mode, st.type);
   $('keyTitle').textContent = nm;
   $('keySub').textContent = ex.scale.map(d => deNote(d.letter, d.alter) + (d.blue ? (d.letter === 6 && d.alter === -1 ? ' (= B♭, Blue Note)' : ' (Blue Note)') : '')).join(' · ') + (st.mode === 'minor' ? `  (Paralleltonart ${deRoot(relMajor())}-Dur)` : '');
@@ -283,6 +290,7 @@ $('mode').onclick = e => { const v = e.target.dataset.v; if (!v) return; if (v !
 $('type').onclick = e => { const v = e.target.dataset.v; if (!v || v === st.type) return; st.type = v; st.fret = null; render(); };
 $('root').onchange = e => { st.root = e.target.value; st.fret = null; render(); };
 $('system').onclick = e => { const v = e.target.dataset.v; if (!v) return; st.system = v; st.fret = null; render(); };
+$('tuning').onchange = e => { st.tuning = e.target.value; st.fret = null; render(); };
 $('pos').onchange = e => { st.fret = +e.target.value; render(); };
 $('range').onclick = e => { const v = e.target.dataset.v; if (!v) return; st.range = v; render(); };
 $('secs').onclick = e => { const v = e.target.dataset.v; if (!v) return; st.sections = st.sections.includes(v) ? st.sections.filter(x => x !== v) : SECTIONS.map(s => s.id).filter(id => id === v || st.sections.includes(id)); fillSecs(); render(); };

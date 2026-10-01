@@ -1,17 +1,17 @@
-// Prüft alle Kombinationen aus Leiter, Tongeschlecht, Grundton, Fingersatz, Lage und Umfang.
+// Prüft alle Kombinationen aus Stimmung, Leiter, Tongeschlecht, Grundton, Fingersatz, Lage und Umfang.
 // Aufruf: npm test  (oder: node tests/verify.test.js)
 const c=require('../js/core.js');
 let errs=[],checks=0;const add=e=>{errs.push(e)};
-for(const type of ['scale','penta','blues'])for(const mode of ['major','minor'])for(const [root] of c.ROOTS[mode])for(const system of ['pos','nps'])for(const range of ['root','full']){
+for(const tuning of Object.keys(c.TUNINGS))for(const type of ['scale','penta','blues'])for(const mode of ['major','minor'])for(const [root] of c.ROOTS[mode])for(const system of ['pos','nps'])for(const range of ['root','full']){
  const sc=c.buildScale(root,mode,type);const K=sc.length;
  if(type!=='blues'&&new Set(sc.map(d=>d.letter)).size!==K) add('spelling '+root+mode);
- for(const sh0 of c.listShapes(sc,system)){
-  const ex=c.buildExercise({type,root,mode,system,fret:sh0.f,range,sections:c.SECTIONS.map(s=>s.id)});
-  const sh=ex.shape,N=sh.notes,tag=[type,root,mode,system,range,'f'+sh.f].join(' ');
-  {const fr=N.map(n=>n.f).filter(f=>f>0);if(fr.length&&Math.max(...fr)-Math.min(...fr)>(type==='scale'&&system==='nps'?6:5))add(tag+' Spanne '+Math.min(...fr)+'-'+Math.max(...fr));}
+ for(const sh0 of c.listShapes(sc,system,c.tuningOpen(tuning))){
+  const ex=c.buildExercise({tuning,type,root,mode,system,fret:sh0.f,range,sections:c.SECTIONS.map(s=>s.id)});
+  const sh=ex.shape,N=sh.notes,tag=[tuning,type,root,mode,system,range,'f'+sh.f].join(' ');
+  {const fr=N.map(n=>n.f).filter(f=>f>0);if(fr.length&&Math.max(...fr)-Math.min(...fr)>(type==='scale'&&system==='nps'?6:5)+Math.max(...c.OPEN.map((m,i)=>m-ex.open[i])))add(tag+' Spanne '+Math.min(...fr)+'-'+Math.max(...fr));}
   if(system==='nps'&&type==='penta'){for(let s=0;s<6;s++)if(N.filter(n=>n.s===s).length!==2)add(tag+' nicht 2 pro Saite');}
   if(new Set(N.map(n=>n.s+'/'+n.f)).size!==N.length)add(tag+' doppelte Position');
-  N.forEach((n,i)=>{ if(c.OPEN[n.s]+n.f!==n.m) add(tag+' fret/midi '+i);
+  N.forEach((n,i)=>{ if(ex.open[n.s]+n.f!==n.m) add(tag+' fret/midi '+i);
     if(i){const d0=c.degreeOf(sc,N[i-1].m),d1=c.degreeOf(sc,n.m); checks++;
       if(n.m<=N[i-1].m||(d0+1)%K!==d1) add(tag+' Lücke in Lage bei Ton '+i);}});
   if(system==='nps'&&type==='scale'){for(let s=0;s<6;s++)if(N.filter(n=>n.s===s).length!==3)add(tag+' nicht 3 pro Saite');}
@@ -41,7 +41,11 @@ for(const type of ['scale','penta','blues'])for(const mode of ['major','minor'])
   const x=c.toMusicXML(ex,{type,root,mode,bpm:90});
   const LET={C:0,D:2,E:4,F:5,G:7,A:9,B:11};
   [...x.matchAll(/<pitch><step>(\w)<\/step>(?:<alter>(-?\d)<\/alter>)?<octave>(-?\d)<\/octave><\/pitch>.*?<string>(\d)<\/string><fret>(\d+)<\/fret>/g)].forEach(p=>{
-    const w=(+p[3]+1)*12+LET[p[1]]+(+p[2]||0);checks++;if(w-12!==c.OPEN[6-p[4]]+(+p[5]))add(tag+' XML Tonhöhe');});
+    const w=(+p[3]+1)*12+LET[p[1]]+(+p[2]||0);checks++;if(w-12!==ex.open[6-p[4]]+(+p[5]))add(tag+' XML Tonhöhe');});
+ 
+  // Stimmung im MusicXML muss zu den Leersaiten passen
+  [...x.matchAll(/<staff-tuning line="(\d)"><tuning-step>(\w)<\/tuning-step>(?:<tuning-alter>(-?\d)<\/tuning-alter>)?<tuning-octave>(\d)<\/tuning-octave>/g)].forEach(p=>{
+    checks++;if((+p[4]+1)*12+LET[p[2]]+(+p[3]||0)!==ex.open[p[1]-1])add(tag+' XML Stimmung');});
  }}
 const uniq=[...new Set(errs.map(e=>e.replace(/^\S+ \S+ /,'').replace(/f\d+ /,'')))];
 console.log('Prüfungen:',checks,'Fehler:',errs.length);if(errs.length){console.log(errs.slice(0,40).join('\n'));process.exit(1);}

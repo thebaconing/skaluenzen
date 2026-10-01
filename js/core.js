@@ -1,10 +1,22 @@
 // Kernlogik: Leitern, Fingersätze, Sequenzen, MusicXML- und ZIP-Export.
 // Läuft im Browser und in Node (für die Tests).
 // ===== Kernlogik: Skalen, Lagen, Sequenzen, MusicXML, ZIP =====
-const OPEN = [40, 45, 50, 55, 59, 64]; // E A D G B e (MIDI), Index 0 = tiefe E-Saite
-const STR_NAMES = ['E', 'A', 'D', 'G', 'B', 'e'];
 const LETTERS = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
 const NAT_PC = [0, 2, 4, 5, 7, 9, 11];
+// Stimmungen: Leersaiten von der tiefsten zur höchsten Saite in wissenschaftlicher Notation (klingend, E2 = tiefe E-Saite).
+// Neue Stimmung = neuer Eintrag hier, mehr ist nicht nötig. Vorzeichen als '#' oder 'b', z. B. 'Eb2'.
+const TUNINGS = {
+  standard: { label: 'Standard', strings: ['E2', 'A2', 'D3', 'G3', 'B3', 'E4'] },
+  dropd: { label: 'Drop D', strings: ['D2', 'A2', 'D3', 'G3', 'B3', 'E4'] }
+};
+function parseTuningNote(t) {
+  const m = /^([A-G])([#b]?)(-?\d)$/.exec(t);
+  const letter = LETTERS.indexOf(m[1]), alter = m[2] === '#' ? 1 : m[2] === 'b' ? -1 : 0, octave = +m[3];
+  return { step: m[1], letter, alter, octave, midi: (octave + 1) * 12 + NAT_PC[letter] + alter };
+}
+// Leersaiten als MIDI-Nummern, Index 0 = tiefste Saite
+function tuningOpen(id) { return (TUNINGS[id] || TUNINGS.standard).strings.map(t => parseTuningNote(t).midi); }
+const OPEN = tuningOpen('standard');
 const MODES = {
   major: { label: 'Dur', iv: [0, 2, 4, 5, 7, 9, 11], xml: 'major' },
   minor: { label: 'Moll (natürlich)', iv: [0, 2, 3, 5, 7, 8, 10], xml: 'minor' }
@@ -63,20 +75,23 @@ function degreeOf(scale, midi) {
 }
 
 // --- Fingersätze ---
-// "pos": Lage mit 4-Bund-Fenster [f, f+3], Streckung auf f+4 nur wenn sonst ein Skalenton fehlt
-function shapePosition(scale, f) {
-  const notes = [];
+// "pos": Lage mit 4-Bund-Fenster [f, f+3], Streckung auf f+4 nur wenn sonst ein Skalenton fehlt.
+// Bei anderen Stimmungen wird das Fenster je Saite um die Abweichung zur Standardstimmung verschoben
+// (Drop D: tiefe Saite 2 Bünde höher), damit das Griffbild gleich bleibt.
+const posOff = open => open.map((m, s) => OPEN[s] - m);
+function shapePosition(scale, f, open = OPEN) {
+  const notes = [], off = posOff(open);
   let last = -1;
   for (let s = 0; s < 6; s++) {
-    for (let fr = f; fr <= f + 4; fr++) {
-      const m = OPEN[s] + fr;
+    for (let fr = f + off[s]; fr <= f + off[s] + 4; fr++) {
+      const m = open[s] + fr;
       if (m <= last || degreeOf(scale, m) < 0) continue;
-      if (fr === f + 4 && s < 5) {
+      if (fr === f + off[s] + 4 && s < 5) {
         // nur nehmen, wenn die nächste Saite den Ton nicht im Fenster hat
-        const nf = m - OPEN[s + 1];
-        if (nf >= f && nf <= f + 3) continue;
+        const nf = m - open[s + 1];
+        if (nf >= f + off[s + 1] && nf <= f + off[s + 1] + 3) continue;
       }
-      if (fr === f + 4 && s === 5) continue;
+      if (fr === f + off[s] + 4 && s === 5) continue;
       notes.push({ s, f: fr, m });
       last = m;
     }
@@ -84,12 +99,12 @@ function shapePosition(scale, f) {
   return notes;
 }
 // "3nps": drei Töne pro Saite, beginnend bei Bund f auf der tiefen E-Saite
-function shape3nps(scale, f) {
+function shape3nps(scale, f, open = OPEN) {
   const notes = [];
-  let m = OPEN[0] + f;
+  let m = open[0] + f;
   for (let s = 0; s < 6; s++) {
     for (let k = 0; k < 3; k++) {
-      notes.push({ s, f: m - OPEN[s], m });
+      notes.push({ s, f: m - open[s], m });
       // nächster Skalenton
       do { m++; } while (degreeOf(scale, m) < 0);
     }
@@ -97,19 +112,19 @@ function shape3nps(scale, f) {
   return notes;
 }
 // n Töne pro Saite (Tonleiter 3, Pentatonik 2)
-function shapeNps(scale, f, per) {
+function shapeNps(scale, f, per, open = OPEN) {
   const notes = [];
-  let m = OPEN[0] + f;
+  let m = open[0] + f;
   for (let s = 0; s < 6; s++) for (let k = 0; k < per; k++) {
-    notes.push({ s, f: m - OPEN[s], m });
+    notes.push({ s, f: m - open[s], m });
     do { m++; } while (degreeOf(scale, m) < 0);
   }
   return notes;
 }
 // Blues-Box: Pentatonik-Box (2 pro Saite) plus Blue Note an der nächstgelegenen Stelle
-function shapeBluesBox(scale, f) {
+function shapeBluesBox(scale, f, open = OPEN) {
   const pent = buildScale(scale.root, scale.mode, 'penta');
-  const box = shapeNps(pent, f, 2), out = [];
+  const box = shapeNps(pent, f, 2, open), out = [];
   const fr = box.map(n => n.f).filter(x => x > 0), lo = Math.min(...fr, f), hi = Math.max(...fr);
   box.forEach((a, i) => {
     out.push(a);
@@ -125,11 +140,12 @@ function shapeBluesBox(scale, f) {
   });
   return out;
 }
-function listShapes(scale, system) {
+function listShapes(scale, system, open = OPEN) {
   const out = [];
   for (let f = 0; f <= 12; f++) {
-    if (degreeOf(scale, OPEN[0] + f) < 0 || isBlue(scale, OPEN[0] + f)) continue;
-    const notes = system === 'pos' ? shapePosition(scale, f) : scale.type === 'blues' ? shapeBluesBox(scale, f) : shapeNps(scale, f, scale.type === 'penta' ? 2 : 3);
+    const m0 = open[0] + f + (system === 'pos' ? posOff(open)[0] : 0); // erster Ton der Lage
+    if (degreeOf(scale, m0) < 0 || isBlue(scale, m0)) continue;
+    const notes = system === 'pos' ? shapePosition(scale, f, open) : scale.type === 'blues' ? shapeBluesBox(scale, f, open) : shapeNps(scale, f, scale.type === 'penta' ? 2 : 3, open);
     if (notes.some(n => n.f < 0 || n.f > 22)) continue;
     const r = notes.findIndex(n => degreeOf(scale, n.m) === 0);
     out.push({ f, notes, rootIdx: r, span: notes.length - 1 - r, type: scale.type });
@@ -199,11 +215,12 @@ function buildSection(sec, shape, range) {
 
 function buildExercise(opts) {
   const scale = buildScale(opts.root, opts.mode, opts.type || 'scale');
-  const shapes = listShapes(scale, opts.system);
+  const tuning = TUNINGS[opts.tuning] ? opts.tuning : 'standard', open = tuningOpen(tuning);
+  const shapes = listShapes(scale, opts.system, open);
   let shape = shapes.find(s => s.f === opts.fret);
   if (!shape) shape = bestShape(shapes, opts.range);
   const sections = SECTIONS.filter(s => opts.sections.includes(s.id)).map(s => buildSection(s, shape, opts.range));
-  return { scale, shapes, shape, sections };
+  return { scale, shapes, shape, sections, tuning, open };
 }
 function bestShape(shapes, range) {
   return shapes.slice().sort((a, b) => (range === 'full' ? 0 : b.span - a.span) || (b.notes.length - a.notes.length) || a.f - b.f)[0];
@@ -245,7 +262,7 @@ function toMusicXML(ex, opts) {
         out += `<attributes><divisions>${DIV}</divisions><key><fifths>${fifths}</fifths><mode>${MODES[opts.mode].xml}</mode></key><time><beats>4</beats><beat-type>4</beat-type></time>` +
           `<clef><sign>G</sign><line>2</line><clef-octave-change>-1</clef-octave-change></clef>` +
           `<staff-details><staff-lines>6</staff-lines>` +
-          [['E', 2], ['A', 2], ['D', 3], ['G', 3], ['B', 3], ['E', 4]].map((t, i) => `<staff-tuning line="${i + 1}"><tuning-step>${t[0]}</tuning-step><tuning-octave>${t[1]}</tuning-octave></staff-tuning>`).join('') +
+          TUNINGS[ex.tuning || 'standard'].strings.map(parseTuningNote).map((t, i) => `<staff-tuning line="${i + 1}"><tuning-step>${t.step}</tuning-step>${t.alter ? `<tuning-alter>${t.alter}</tuning-alter>` : ''}<tuning-octave>${t.octave}</tuning-octave></staff-tuning>`).join('') +
           `</staff-details><transpose><diatonic>0</diatonic><chromatic>0</chromatic><octave-change>-1</octave-change></transpose></attributes>`;
         out += `<direction placement="above"><direction-type><metronome><beat-unit>quarter</beat-unit><per-minute>${opts.bpm}</per-minute></metronome></direction-type><sound tempo="${opts.bpm}"/></direction>`;
       }
@@ -319,4 +336,4 @@ function makeZip(files) {
   return out;
 }
 
-if (typeof module !== 'undefined') module.exports = { TYPES, sectionText, OPEN, STR_NAMES, ROOTS, MODES, SECTIONS, UNITS, buildScale, listShapes, buildExercise, toMusicXML, makeZip, germanName, displayName, degreeOf, bestShape };
+if (typeof module !== 'undefined') module.exports = { TYPES, TUNINGS, tuningOpen, parseTuningNote, sectionText, OPEN, ROOTS, MODES, SECTIONS, UNITS, buildScale, listShapes, buildExercise, toMusicXML, makeZip, germanName, displayName, degreeOf, bestShape };
