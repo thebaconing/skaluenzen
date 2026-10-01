@@ -2,7 +2,7 @@
 (() => {
 const $ = id => document.getElementById(id);
 const STORE = 'skalenseq-v1';
-let st = { type: 'scale', mode: 'minor', root: 'E', system: 'pos', fret: null, range: 'root', bpm: 90, sections: SECTIONS.map(s => s.id) };
+let st = { type: 'scale', mode: 'minor', root: 'E', system: 'pos', fret: null, range: 'root', bpm: 90, vol: 50, tone: 35, sections: SECTIONS.map(s => s.id) };
 try { const s = JSON.parse(localStorage.getItem(STORE) || 'null'); if (s) st = Object.assign(st, s); } catch (e) {}
 if (st.system === '3nps') st.system = 'nps';
 if (!TYPES[st.type]) st.type = 'scale';
@@ -116,6 +116,7 @@ function render() {
   $('sysNps').textContent = st.type === 'scale' ? '3 pro Saite' : st.type === 'penta' ? 'Boxen (2 pro Saite)' : 'Boxen + Blue Note';
   fillRoots(); fillPositions(); fillSecs(); setSeg('type', st.type); setSeg('mode', st.mode); setSeg('system', st.system); setSeg('range', st.range);
   $('bpm').value = st.bpm; $('bpmOut').value = st.bpm;
+  $('vol').value = st.vol; $('volOut').value = st.vol; $('tone').value = st.tone; $('toneOut').value = st.tone;
   ex = buildExercise({ type: st.type, root: st.root, mode: st.mode, system: st.system, fret: st.fret, range: st.range, sections: st.sections });
   const nm = typeName(st.root, st.mode, st.type);
   $('keyTitle').textContent = nm;
@@ -134,7 +135,7 @@ function render() {
 function relMajor() { const sc = buildScale(st.root, st.mode, 'scale'); const d = sc[2]; return 'CDEFGAB'[d.letter] + (d.alter === 1 ? '#' : d.alter === -1 ? 'b' : ''); }
 
 // ---------- Audio ----------
-let master = null, ac = null, timer = null, playing = false, queue = [], qi = 0, nextT = 0, lastOn = null, loopIdx = null, rafId = 0;
+let master = null, out = null, lp = null, ac = null, timer = null, playing = false, queue = [], qi = 0, nextT = 0, lastOn = null, loopIdx = null, rafId = 0;
 const bufCache = new Map();
 function ks(m) {
   if (bufCache.has(m)) return bufCache.get(m);
@@ -149,12 +150,19 @@ function ks(m) {
 function pluck(m, t, dur) {
   const src = ac.createBufferSource(); src.buffer = ks(m);
   const g = ac.createGain(); g.gain.setValueAtTime(0.55, t); g.gain.setTargetAtTime(0, t + Math.max(0.08, dur * 0.95), 0.03);
-  src.connect(g).connect(master); src.start(t); src.stop(t + dur + 0.3);
+  src.connect(g).connect(lp); src.start(t); src.stop(t + dur + 0.3);
 }
 function click(t, strong) {
   const o = ac.createOscillator(), g = ac.createGain(); o.frequency.value = strong ? 1600 : 1100;
-  g.gain.setValueAtTime(strong ? 0.22 : 0.13, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.04);
+  g.gain.setValueAtTime(strong ? 0.12 : 0.07, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.04);
   o.connect(g).connect(master); o.start(t); o.stop(t + 0.05);
+}
+// Lautstärke (0–100, quadratisch) und Klang (0 = dumpf … 100 = hell, Tiefpass 700 Hz … 12 kHz)
+function applySound() {
+  if (!master) return;
+  const v = st.vol / 100, t = ac.currentTime;
+  master.gain.setTargetAtTime(v * v * 1.6, t, 0.02);
+  lp.frequency.setTargetAtTime(700 * Math.pow(12000 / 700, st.tone / 100), t, 0.02);
 }
 function buildQueue(only) {
   const q = []; let pos = 0; // pos in Divisions
@@ -221,6 +229,8 @@ async function start(only) {
   queue = buildQueue(only);
   queue.q.forEach(e => { if (!e.click) ks(e.m); }); // Gitarrenklänge vorab berechnen
   master = ac.createGain(); master.connect(ac.destination);
+  lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = 0.5; lp.connect(master);
+  applySound();
   qi = 0; curAt = 0; endAt = null; nextT = ac.currentTime + 0.12; shown = [];
   timer = setInterval(schedule, 25); schedule(); frame();
   $('status').textContent = only != null ? `Spielt: ${ex.sections[only].sec.title}` : 'Spielt alle gewählten Teile, mit vier Klicks Einzähler.';
@@ -230,7 +240,7 @@ function stop() {
   playing = false; if (timer) clearInterval(timer); timer = null; cancelAnimationFrame(rafId);
   if (lastOn) lastOn.classList.remove('on'); lastOn = null;
   if ($('play')) $('play').textContent = '▶ Abspielen';
-  if (master) { try { master.disconnect(); } catch (e) {} master = null; }
+  if (master) { try { master.disconnect(); lp.disconnect(); } catch (e) {} master = null; lp = null; }
 }
 
 // Manuelles Scrollen pausiert das Mitscrollen für 4 Sekunden
@@ -276,6 +286,8 @@ $('pos').onchange = e => { st.fret = +e.target.value; render(); };
 $('range').onclick = e => { const v = e.target.dataset.v; if (!v) return; st.range = v; render(); };
 $('secs').onclick = e => { const v = e.target.dataset.v; if (!v) return; st.sections = st.sections.includes(v) ? st.sections.filter(x => x !== v) : SECTIONS.map(s => s.id).filter(id => id === v || st.sections.includes(id)); fillSecs(); render(); };
 $('bpm').oninput = e => { st.bpm = +e.target.value; $('bpmOut').value = st.bpm; save(); };
+$('vol').oninput = e => { st.vol = +e.target.value; $('volOut').value = st.vol; applySound(); save(); };
+$('tone').oninput = e => { st.tone = +e.target.value; $('toneOut').value = st.tone; applySound(); save(); };
 $('play').onclick = () => playing ? (stop(), $('status').textContent = '') : start(null);
 $('out').onclick = e => { const b = e.target.closest('[data-play]'); if (b) start(+b.dataset.play); };
 

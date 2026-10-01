@@ -44,6 +44,7 @@ select{background:var(--bg);border:1px solid var(--line);border-radius:7px;paddi
 .tempo{display:flex;align-items:center;gap:8px}
 .tempo output{font:600 15px var(--f-mono);min-width:5.5ch;font-variant-numeric:tabular-nums}
 .tempo input{width:160px;accent-color:var(--accent)}
+.tempo.snd input{width:100px}.tempo.snd output{min-width:3ch}
 label.tg{display:flex;align-items:center;gap:6px;cursor:pointer;font-size:14px}
 label.tg input{accent-color:var(--accent);width:16px;height:16px}
 .spacer{flex:1}
