@@ -1,4 +1,4 @@
-# Skalen-Sequenzen
+# Skaluenzen
 
 Web-Tool für Gitarren-Skalenübungen. Erzeugt für jede Tonart, Leiter und Lage fünf Übungsteile als Tabulatur, spielt sie ab und exportiert sie als MusicXML für Guitar Pro.
 
